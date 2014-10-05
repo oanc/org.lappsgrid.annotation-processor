@@ -1,6 +1,13 @@
 org.lappsgrid.annotation-processor
 ==================================
 
+# WARNING
+
+This project is dead as the code has been merged into the [LAPPS Annotations Project](https://github.com/oanc/org.lappsgrid.annotations).
+The repository remains for historical reasons only.
+
+## Introduction
+
 Annotation processor used to generate the JSON metadata for LAPPS services.
 
 See the [LAPPS Annotations Project](https://github.com/oanc/org.lappsgrid.annotations)
