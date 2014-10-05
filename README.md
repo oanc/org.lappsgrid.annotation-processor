@@ -3,6 +3,9 @@ org.lappsgrid.annotation-processor
 
 Annotation processor used to generate the JSON metadata for LAPPS services.
 
+See the [LAPPS Annotations Project](https://github.com/oanc/org.lappsgrid.annotations)
+for information on annotating Java classes with the LAPPS annotations to generate metadata in JSON.
+
 ## Maven
 
 ```xml
