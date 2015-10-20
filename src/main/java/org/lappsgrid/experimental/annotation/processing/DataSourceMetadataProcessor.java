@@ -5,9 +5,8 @@ import org.lappsgrid.discriminator.Discriminator;
 import org.lappsgrid.discriminator.DiscriminatorRegistry;
 import org.lappsgrid.experimental.annotations.DataSourceMetadata;
 import org.lappsgrid.experimental.annotations.ServiceMetadata;
-import org.lappsgrid.metadata.AnnotationType;
-import org.lappsgrid.metadata.ContentType;
 import org.lappsgrid.metadata.IOSpecification;
+import org.lappsgrid.serialization.Serializer;
 import org.xml.sax.InputSource;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -109,15 +108,15 @@ public class DataSourceMetadataProcessor //extends AbstractProcessor
 		return true;
 	}
 
-	private ContentType getContentType(String name)
-	{
-		Discriminator d = DiscriminatorRegistry.getByName(name);
-		if (d == null)
-		{
-			return null;
-		}
-		return new ContentType(d.getUri());
-	}
+//	private ContentType getContentType(String name)
+//	{
+//		Discriminator d = DiscriminatorRegistry.getByName(name);
+//		if (d == null)
+//		{
+//			return null;
+//		}
+//		return new ContentType(d.getUri());
+//	}
 
 	private String get(String string)
 	{
@@ -213,26 +212,6 @@ public class DataSourceMetadataProcessor //extends AbstractProcessor
 		}
 	}
 
-	private <T> void addList(List<T> list, IOSpecification spec)
-	{
-		for (T item : list)
-		{
-//         log("Adding " + item.toString() + " to list");
-			if (item instanceof ContentType)
-			{
-				spec.add((ContentType) item);
-			}
-			else if (item instanceof AnnotationType)
-			{
-				spec.add((AnnotationType) item);
-			}
-			else
-			{
-				spec.add((String) item);
-			}
-		}
-	}
-
 	private void writeDataSourceMetadata(File file, String className, DataSourceMetadata annotation) throws IOException
 	{
 		org.lappsgrid.metadata.DataSourceMetadata metadata = new org.lappsgrid.metadata.DataSourceMetadata();
@@ -251,7 +230,7 @@ public class DataSourceMetadataProcessor //extends AbstractProcessor
 		try
 		{
 			writer = new UTF8Writer(file);
-			writer.write(metadata.toPrettyJson());
+			writer.write(Serializer.toPrettyJson(metadata));
 			log("Wrote " + file.getPath());
 		}
 		finally
@@ -261,77 +240,6 @@ public class DataSourceMetadataProcessor //extends AbstractProcessor
 				writer.close();
 			}
 		}
-	}
-
-	private interface Factory<T>
-	{
-		T make(String uri);
-	}
-
-	private static class AnnotationTypeFactory implements Factory<AnnotationType>
-	{
-		public AnnotationType make(String uri)
-		{
-			Discriminator d = DiscriminatorRegistry.getByName(uri);
-			if (d == null)
-			{
-				return new AnnotationType();
-			}
-			return new AnnotationType(d);
-		}
-	}
-
-	private static class ContentTypeFactory implements Factory<ContentType>
-	{
-		public ContentType make(String uri)
-		{
-			Discriminator d = DiscriminatorRegistry.getByName(uri);
-			if (d == null)
-			{
-				//TODO This should return an error type of some sort.
-				return ContentType.TEXT;
-			}
-			return new ContentType(d.getUri());
-		}
-	}
-
-	private static class StringFactory implements Factory<String>
-	{
-		public String make(String uri)
-		{
-			return uri;
-		}
-	}
-
-	private <T> List<T> makeList(Factory<T> factory, String[] array)
-	{
-		List<T> list = new ArrayList<>(array.length);
-		for (String string : array)
-		{
-			list.add(factory.make(string));
-		}
-		return list;
-	}
-
-	private <T> List<T> makeList(Factory<T> factory, String[] outArray, String outString)
-	{
-		List<T> list = new ArrayList<T>();
-		if (outArray.length > 0)
-		{
-//         log("Making list from specific array");
-			for (String term : outArray)
-			{
-//            log("Adding " + term);
-				list.add(factory.make(term));
-			}
-		}
-		else if (outString.length() > 0)
-		{
-//         log("Making list from specific value " + outString);
-			list.add(factory.make(outString));
-		}
-//      log("List size: " + list.size());
-		return list;
 	}
 
 	class MavenNamespaceContext implements NamespaceContext

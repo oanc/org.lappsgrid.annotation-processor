@@ -6,10 +6,8 @@ import org.lappsgrid.discriminator.DiscriminatorRegistry;
 import org.lappsgrid.experimental.annotations.CommonMetadata;
 import org.lappsgrid.experimental.annotations.DataSourceMetadata;
 import org.lappsgrid.experimental.annotations.ServiceMetadata;
-import org.lappsgrid.metadata.AnnotationType;
-import org.lappsgrid.metadata.ContentType;
 import org.lappsgrid.metadata.IOSpecification;
-import org.w3c.dom.NodeList;
+import org.lappsgrid.serialization.Serializer;
 import org.xml.sax.InputSource;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -24,12 +22,14 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.xml.namespace.NamespaceContext;
-import javax.xml.xpath.*;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.util.*;
 
 /**
@@ -142,11 +142,9 @@ public class MetadataProcessor extends AbstractProcessor
 			if (metadata != null)
 			{
 				System.out.println("this class has metadata: " + className);
-			}
-         CombinedMetadata combined = new CombinedMetadata(common, metadata);
-         File file = new File(root, className + ".json");
+            CombinedMetadata combined = new CombinedMetadata(common, metadata);
+            File file = new File(root, className + ".json");
             debug("Generating ServiceMetadata for " + className);
-//            log(combined);
             try
             {
                writeMetadata(file, className, combined);
@@ -156,6 +154,7 @@ public class MetadataProcessor extends AbstractProcessor
                log(e.getMessage());
                e.printStackTrace();
             }
+			}
       }
    }
 
@@ -189,15 +188,15 @@ public class MetadataProcessor extends AbstractProcessor
 		}
 	}
 
-   private ContentType getContentType(String name)
-   {
-      Discriminator d = DiscriminatorRegistry.getByName(name);
-      if (d == null)
-      {
-         return null;
-      }
-      return new ContentType(d.getUri());
-   }
+//   private ContentType getContentType(String name)
+//   {
+//      Discriminator d = DiscriminatorRegistry.getByName(name);
+//      if (d == null)
+//      {
+//         return null;
+//      }
+//      return new ContentType(d.getUri());
+//   }
 
    private String get(String string)
    {
@@ -293,26 +292,6 @@ public class MetadataProcessor extends AbstractProcessor
       }
    }
 
-   private <T> void addList(List<T> list, IOSpecification spec)
-   {
-      for (T item : list)
-      {
-//         log("Adding " + item.toString() + " to list");
-         if (item instanceof ContentType)
-         {
-            spec.add((ContentType) item);
-         }
-         else if (item instanceof AnnotationType)
-         {
-            spec.add((AnnotationType) item);
-         }
-         else
-         {
-            spec.add((String) item);
-         }
-      }
-   }
-
 	private void writeDataSourceMetadata(File file, String className, DataSourceMetadata annotation) throws IOException
 	{
 		org.lappsgrid.metadata.DataSourceMetadata metadata = new org.lappsgrid.metadata.DataSourceMetadata();
@@ -332,12 +311,12 @@ public class MetadataProcessor extends AbstractProcessor
 		}
 		metadata.setFormat(formats);
 //		metadata.setFormat(Arrays.asList(annotation.format()));
-
 		UTF8Writer writer = null;
 		try
 		{
 			writer = new UTF8Writer(file);
-			writer.write(metadata.toPrettyJson());
+//         mapper.writeValue(writer, metadata);
+         writer.write(Serializer.toPrettyJson(metadata));
 			log("Wrote " + file.getPath());
 		}
 		finally
@@ -361,25 +340,24 @@ public class MetadataProcessor extends AbstractProcessor
       metadata.setVersion(getVersion(combined.version()));
 
       // Object factories used when generating lists of things.
-      Factory<ContentType> contentTypeFactory = new ContentTypeFactory();
-      Factory<AnnotationType> annotationTypeFactory = new AnnotationTypeFactory();
-      Factory<String> stringFactory = new StringFactory();
+//      Factory<ContentType> contentTypeFactory = new ContentTypeFactory();
+//      Factory<AnnotationType> annotationTypeFactory = new AnnotationTypeFactory();
+//      Factory<String> stringFactory = new StringFactory();
 
       IOSpecification requires = metadata.getRequires();
       log("Setting format");
-      List<ContentType> formats = makeList(contentTypeFactory, combined.inputFormat());
-		debug("Combined formats.");
-		for (ContentType type : formats)
-		{
-			debug(type.toString());
-		}
-      addList(formats, requires);
+//		debug("Combined formats.");
+//		for (ContentType type : formats)
+//		{
+//			debug(type.toString());
+//		}
+      requires.addFormats(combined.inputFormat());
 
-		debug("Required formats.");
-		for (ContentType type : requires.getFormat())
-		{
-			debug(type.toString());
-		}
+//		debug("Required formats.");
+//		for (ContentType type : requires.getFormat())
+//		{
+//			debug(type.toString());
+//		}
 
       String encoding = combined.inputEncoding();
       if (encoding != null && encoding.length() > 0)
@@ -389,18 +367,21 @@ public class MetadataProcessor extends AbstractProcessor
       }
 
 //      log("Setting languages");
-      List<String> languages = makeList(stringFactory, combined.inputLanguage());
-      addList(languages, requires);
+//      List<String> languages = makeList(stringFactory, combined.inputLanguage());
+//      addList(languages, requires);
+      requires.addLanguages(combined.inputLanguage());
 
 //      log("Setting annotation types");
-      List<AnnotationType> types = makeList(annotationTypeFactory, combined.requires());
-      addList(types, requires);
+//      List<AnnotationType> types = makeList(annotationTypeFactory, combined.requires());
+//      addList(types, requires);
+      requires.addAnnotations(combined.requires());
 
       // Populate the produces IOSpecification
       IOSpecification produces = metadata.getProduces();
 //      log("Setting formats.");
-      formats = makeList(contentTypeFactory, combined.outputFormat());
-      addList(formats, produces);
+//      formats = makeList(contentTypeFactory, combined.outputFormat());
+//      addList(formats, produces);
+      produces.addFormats(combined.outputFormat());
 
       encoding = combined.outputEncoding();
 //      if (combined.outputEncoding().length() > 0)
@@ -415,18 +396,21 @@ public class MetadataProcessor extends AbstractProcessor
       }
 
 //      log("Setting languages");
-      languages = makeList(stringFactory, combined.outputLanguage());
-      addList(languages, produces);
+//      languages = makeList(stringFactory, combined.outputLanguage());
+//      addList(languages, produces);
+      produces.addLanguages(combined.outputLanguage());
 
 //      log("Setting types");
-      types = makeList(annotationTypeFactory, combined.produces());
-      addList(types, produces);
+//      types = makeList(annotationTypeFactory, combined.produces());
+//      addList(types, produces);
+      produces.addAnnotations(combined.produces());
 
       UTF8Writer writer = null;
       try
       {
          writer = new UTF8Writer(file);
-         writer.write(metadata.toPrettyJson());
+//         writer.write(metadata.toPrettyJson());
+         writer.write(Serializer.toPrettyJson(metadata));
          log("Wrote " + file.getPath());
       }
       finally
@@ -436,93 +420,6 @@ public class MetadataProcessor extends AbstractProcessor
             writer.close();
          }
       }
-   }
-
-   private interface Factory<T>
-   {
-      T make(String uri);
-   }
-
-   private static class AnnotationTypeFactory implements Factory<AnnotationType>
-   {
-      public AnnotationType make(String uri)
-      {
-//			System.out.println("AnnotationTypeFactory.make");
-//			System.out.println("Creating annotation type for " + uri);
-			Discriminator d = DiscriminatorRegistry.getByName(uri);
-         if (d == null)
-         {
-				d = DiscriminatorRegistry.getByUri(uri);
-				if (d == null) {
-//					System.out.println("Unknown type. Returning a dummy.");
-					return new AnnotationType();
-				}
-         }
-//			System.out.println("Creating annotation type for discriminator " + d.getUri());
-			return new AnnotationType(d);
-      }
-   }
-
-   private static class ContentTypeFactory implements Factory<ContentType>
-   {
-      public ContentType make(String uri)
-      {
-         Discriminator d = DiscriminatorRegistry.getByName(uri);
-         if (d == null)
-         {
-				d = DiscriminatorRegistry.getByUri(uri);
-				if (d == null)
-				{
-					//TODO This should return an error type of some sort.
-					return new ContentType(uri);
-//					return ContentType.TEXT;
-				}
-         }
-         return new ContentType(d.getUri());
-      }
-   }
-
-   private static class StringFactory implements Factory<String>
-   {
-      public String make(String uri)
-      {
-         return uri;
-      }
-   }
-
-   private <T> List<T> makeList(Factory<T> factory, String[] array)
-   {
-      List<T> list = new ArrayList<>();
-		if (array == null)
-		{
-			return list;
-		}
-      for (String string : array)
-      {
-         list.add(factory.make(string));
-      }
-      return list;
-   }
-
-   private <T> List<T> makeList(Factory<T> factory, String[] outArray, String outString)
-   {
-      List<T> list = new ArrayList<T>();
-      if (outArray.length > 0)
-      {
-//         log("Making list from specific array");
-         for (String term : outArray)
-         {
-//            log("Adding " + term);
-            list.add(factory.make(term));
-         }
-      }
-      else if (outString.length() > 0)
-      {
-//         log("Making list from specific value " + outString);
-         list.add(factory.make(outString));
-      }
-//      log("List size: " + list.size());
-      return list;
    }
 
    class MavenNamespaceContext implements NamespaceContext
